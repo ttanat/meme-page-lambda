@@ -12,8 +12,8 @@ def lambda_handler(event, context):
     s3.download_file('meme-page-test', event["original_key"], tmp)
 
     data = (
-        ("large", f"{token_urlsafe(8)}.webp", (960, 960)),
-        ("thumbnail", f"{token_urlsafe(8)}.webp", (400, 400)),
+        ("large", f"{token_urlsafe(5)}.webp", (960, 960)),
+        ("thumbnail", f"{token_urlsafe(5)}.webp", (400, 400)),
     )
 
     # Open image.jpg
