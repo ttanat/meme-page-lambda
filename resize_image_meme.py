@@ -9,7 +9,7 @@ new = "/tmp/image.webp"
 
 def lambda_handler(event, context):
     # Download original image to image.jpg
-    s3.download_file('meme-page-test', event["file_key"], tmp)
+    s3.download_file('meme-page-test', event["original_key"], tmp)
 
     data = (
         ("large", f"{token_urlsafe(8)}.webp", (960, 960)),
