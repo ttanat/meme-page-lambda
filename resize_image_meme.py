@@ -13,19 +13,14 @@ def lambda_handler(event, context):
 
     data = (
         ("large", f"{token_urlsafe(8)}.webp", (960, 960)),
-        ("medium", f"{token_urlsafe(8)}.webp", (640, 640)),
-        ("thumbnail", f"{token_urlsafe(8)}.webp", (480, 480)),
-        ("small_thumbnail", f"{token_urlsafe(8)}.webp", (320, 320))
+        ("thumbnail", f"{token_urlsafe(8)}.webp", (400, 400)),
     )
 
     # Open image.jpg
     with Image.open(tmp) as img:
-        """ Remove sizes that image is already smaller than """
-        # Check that image dimensions is less than or equal to given number
-        cd = lambda d: img.width <= d and img.height <= d
-        # Find index at which to slice data
-        i = 3 if cd(320) else 2 if cd(480) else 1 if cd(640) else 0
-        data = data[i:]
+        """ Only create thumbnail if image is already <= 400x400 """
+        if img.width <= 400 and img.height <= 400:
+            data = data[1]
 
         """ Resize image to different sizes and upload back to S3 """
         for size, fname, dimensions in data:
