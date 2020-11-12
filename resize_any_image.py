@@ -24,8 +24,11 @@ def lambda_handler(event, context):
         # Save resized image
         img.save(tmp, optimize=True, quality=70)
 
-        # Upload resized back to same path (overwrite)
-        s3.upload_file(tmp, BUCKET_NAME, event["file_key"])
+    # Get content type of file
+    content_type = "image/png" if event["file_key"].endswith(".png") else "image/jpeg"
+
+    # Upload resized back to same path (overwrite)
+    s3.upload_file(tmp, BUCKET_NAME, event["file_key"], ExtraArgs={"ContentType": content_type})
 
     return {
         "statusCode": 200
