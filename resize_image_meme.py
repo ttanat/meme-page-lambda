@@ -3,13 +3,16 @@ from PIL import Image
 from secrets import token_urlsafe
 
 s3 = boto3.client('s3')
+
 tmp = "/tmp/image.jpg"
 new = "/tmp/image.webp"
+
+BUCKET_NAME = "meme-page-london"
 
 
 def lambda_handler(event, context):
     # Download original image to image.jpg
-    s3.download_file('meme-page-test', event["original_key"], tmp)
+    s3.download_file(BUCKET_NAME, event["original_key"], tmp)
 
     data = (
         ("large", f"{token_urlsafe(5)}.webp", (960, 960)),
@@ -30,7 +33,7 @@ def lambda_handler(event, context):
             img.save(new, optimize=True, quality=70, format="WEBP")
 
             # Upload resized image.webp to key
-            s3.upload_file(new, 'meme-page-test', os.path.join(event["path"], size, fname))
+            s3.upload_file(new, BUCKET_NAME, os.path.join(event["path"], size, fname))
 
     return {
         "statusCode": 200,
