@@ -33,7 +33,7 @@ def lambda_handler(event, context):
             img.save(new, optimize=True, quality=70, format="WEBP")
 
             # Upload resized image.webp to key
-            s3.upload_file(new, BUCKET_NAME, os.path.join(event["path"], size, fname))
+            s3.upload_file(new, BUCKET_NAME, os.path.join(event["path"], size, fname), ExtraArgs={"ContentType": "image/webp"})
 
     return {
         "statusCode": 200,
