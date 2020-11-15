@@ -66,7 +66,12 @@ def lambda_handler(event, context):
     ).run()
 
     # Upload video back to S3
-    s3.upload_file(new_tmp, BUCKET, os.path.join(event["path"], video_data["folder"], video_data["filename"]))
+    s3.upload_file(
+        new_tmp,
+        BUCKET,
+        os.path.join(event["path"], video_data["folder"], video_data["filename"]),
+        ExtraArgs={"ContentType": "video/mp4"}
+    )
 
     # Resize to 400x400 WEBP thumbnail
     # Name of thumbnail file in tmp directory
