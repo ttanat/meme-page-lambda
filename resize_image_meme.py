@@ -7,12 +7,12 @@ s3 = boto3.client('s3')
 tmp = "/tmp/image.jpg"
 new = "/tmp/image.webp"
 
-BUCKET_NAME = "meme-page-london"
+BUCKET = "meme-page-london"
 
 
 def lambda_handler(event, context):
     # Download original image to image.jpg
-    s3.download_file(BUCKET_NAME, event["original_key"], tmp)
+    s3.download_file(BUCKET, event["original_key"], tmp)
 
     data = (
         ("large", f"{token_urlsafe(5)}.webp", (960, 960)),
@@ -40,7 +40,12 @@ def lambda_handler(event, context):
             img.save(new, optimize=True, quality=70, format="WEBP")
 
             # Upload resized image.webp to key
-            s3.upload_file(new, BUCKET_NAME, os.path.join(event["path"], size, fname), ExtraArgs={"ContentType": "image/webp"})
+            s3.upload_file(
+                new,
+                BUCKET,
+                os.path.join(event["path"], size, fname),
+                ExtraArgs={"ContentType": "image/webp"}
+            )
 
     return {
         "statusCode": 200,
