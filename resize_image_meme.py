@@ -21,6 +21,13 @@ def lambda_handler(event, context):
 
     # Open image.jpg
     with Image.open(tmp) as img:
+        """ Check image file size is valid """
+        if img.width < 320 or img.height < 320:
+            return {
+                "statusCode": 418,
+                "errorMessage": "Image must be at least 320x320 pixels"
+            }
+
         """ Only create thumbnail if image is already <= 400x400 """
         if img.width <= 400 and img.height <= 400:
             data = data[1]
