@@ -3,24 +3,26 @@ from secrets import token_urlsafe
 from operator import itemgetter
 
 s3 = boto3.client('s3')
-bucket = 'meme-page-test'
+BUCKET = 'meme-page-london'
 
 def lambda_handler(event, context):
-    video_data = [
-        ("large", f"{token_urlsafe(5)}.mp4", 960),
-        ("medium", f"{token_urlsafe(5)}.mp4", 640),
-    ]
+    video_data = {
+        "folder": "large",
+        "filename": f"{token_urlsafe(5)}.mp4",
+        "dimension": 720
+    }
 
-    thumbnail_data = [
-        ("thumbnail", f"{token_urlsafe(5)}.webp", 480),
-        ("small_thumbnail", f"{token_urlsafe(5)}.webp", 320),
-    ]
+    thumbnail_data = {
+        "folder": "thumbnail",
+        "filename": f"{token_urlsafe(5)}.webp",
+        "dimension": 400
+    }
 
     # Name of file in tmp directory
-    tmp = f"/tmp/{os.path.split(event['file_key'])[1]}"
+    tmp = f"/tmp/{os.path.split(event['original_key'])[1]}"
 
     # Download file from S3
-    s3.download_file(bucket, event["file_key"], tmp)
+    s3.download_file(BUCKET, event["original_key"], tmp)
 
     # Get dimensions of video
     info = ffmpeg.probe(tmp)
@@ -37,62 +39,67 @@ def lambda_handler(event, context):
     if duration > 60:
         return {"statusCode": 418, "errorMessage": "Video must be 60 seconds or less"}
 
-    # Check if have to resize video twice (remove from data if not)
-    if width <= 640 and height <= 640:
-        video_data.pop(0)
-    # Check if have to create thumbnail twice (remove from data if not)
-    if width == 320 and height == 320:
-        thumbnail_data.pop(0)
-
     # Open file in ffmpeg
     file = ffmpeg.input(tmp)
 
-    # Resize to 960x960 and 640x640 videos
-    for folder, fname, size in video_data:
-        # Name of new video file in tmp directory
-        new_tmp = f"/tmp/{size}.mp4"
-        try:
-            os.remove(new_tmp)
-        except OSError:
-            pass
+    # Resize to 720x720 video
+    # Name of new video file in tmp directory
+    new_tmp = f"/tmp/video.mp4"
+    try:
+        os.remove(new_tmp)
+    except OSError:
+        pass
 
-        # Process video
-        file.output(
-            new_tmp,
-            movflags="faststart",
-            vcodec="libx264",
-            crf=33,
-            format="mp4",
-            pix_fmt="yuv420p",
-            vf=f"scale='min({size},iw)':'min({size},ih)'\
-                 :force_original_aspect_ratio=decrease:force_divisible_by=2"
-        ).run()
+    # For readability
+    vd = video_data["dimension"]
 
-        # Upload video back to S3
-        s3.upload_file(new_tmp, bucket, os.path.join(event["path"], folder, fname))
+    # Process video
+    file.output(
+        new_tmp,
+        movflags="faststart",
+        vcodec="libx264",
+        crf=33,
+        format="mp4",
+        pix_fmt="yuv420p",
+        vf=f"scale='min({vd},iw)':'min({vd},ih)'\
+             :force_original_aspect_ratio=decrease:force_divisible_by=2"
+    ).run()
 
-    # Resize to 480x480 and 320x320 WEBP thumbnails
-    for folder, fname, size in thumbnail_data:
-        # Name of thumbnail file in tmp directory
-        new_tmp = f"/tmp/{size}.webp"
-        try:
-            os.remove(new_tmp)
-        except OSError:
-            pass
+    # Upload video back to S3
+    s3.upload_file(new_tmp, BUCKET, os.path.join(event["path"], video_data["folder"], video_data["filename"]))
 
-        # Create thumbnails
-        file.output(
-            new_tmp,
-            r=1,
-            vframes=1,
-            vf=f"scale='if(gt(iw,ih), -2, min({size},iw))':'if(gt(ih,iw), -2, min({size},ih))',\
-                 crop='min({size},min(iw,ih))':'min({size},min(iw,ih))'"
-        ).run()
+    # Resize to 400x400 WEBP thumbnail
+    # Name of thumbnail file in tmp directory
+    new_tmp = f"/tmp/thumbnail.webp"
+    try:
+        os.remove(new_tmp)
+    except OSError:
+        pass
 
-        # Upload thumbnail back to S3
-        s3.upload_file(new_tmp, bucket, os.path.join(event["path"], folder, fname))
+    # For readability
+    td = thumbnail_data["dimension"]
+
+    # Create thumbnails
+    file.output(
+        new_tmp,
+        r=1,
+        vframes=1,
+        vf=f"scale='if(gt(iw,ih), -2, min({td},iw))':'if(gt(ih,iw), -2, min({td},ih))',\
+             crop='min({td},min(iw,ih))':'min({td},min(iw,ih))'"
+    ).run()
+
+    # Upload thumbnail back to S3
+    s3.upload_file(
+        new_tmp,
+        BUCKET,
+        os.path.join(event["path"], thumbnail_data["folder"], thumbnail_data["filename"]),
+        ExtraArgs={"ContentType": "image/webp"}
+    )
 
     return {
         "statusCode": 200,
-        "body": [{"size": size, "filename": filename} for size, filename, _ in video_data + thumbnail_data]
+        "body": [
+            {"size": video_data["folder"], "filename": video_data["filename"]},
+            {"size": thumbnail_data["folder"], "filename": thumbnail_data["filename"]}
+        ]
     }
