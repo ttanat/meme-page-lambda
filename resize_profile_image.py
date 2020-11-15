@@ -23,7 +23,7 @@ def lambda_handler(event, context):
         img.thumbnail((400, 400))
         img.save(tmp, optimize=True, quality=70)
 
-        content_type = "image/png" if event["image_key"].endswith(".png") else "image/jpeg"
+        content_type = "image/png" if ext.lower() == ".png" else "image/jpeg"
         extra_args = {"ContentType": content_type}
 
         # Upload resized image back to same path (overwrite)
