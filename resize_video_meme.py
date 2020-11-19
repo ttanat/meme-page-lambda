@@ -8,14 +8,12 @@ BUCKET = 'meme-page-london'
 def lambda_handler(event, context):
     video_data = {
         "folder": "large",
-        "filename": f"{token_urlsafe(5)}.mp4",
-        "dimension": 720
+        "filename": f"{token_urlsafe(5)}.mp4"
     }
 
     thumbnail_data = {
         "folder": "thumbnail",
-        "filename": f"{token_urlsafe(5)}.webp",
-        "dimension": 400
+        "filename": f"{token_urlsafe(5)}.webp"
     }
 
     # Name of file in tmp directory
@@ -50,9 +48,6 @@ def lambda_handler(event, context):
     except OSError:
         pass
 
-    # For readability
-    vd = video_data["dimension"]
-
     # Process video
     file.output(
         new_tmp,
@@ -61,7 +56,7 @@ def lambda_handler(event, context):
         crf=33,
         format="mp4",
         pix_fmt="yuv420p",
-        vf=f"scale='min({vd},iw)':'min({vd},ih)'\
+        vf=f"scale='min(720,iw)':'min(720,ih)'\
              :force_original_aspect_ratio=decrease:force_divisible_by=2"
     ).run()
 
@@ -81,16 +76,13 @@ def lambda_handler(event, context):
     except OSError:
         pass
 
-    # For readability
-    td = thumbnail_data["dimension"]
-
     # Create thumbnails
     file.output(
         new_tmp,
         r=1,
         vframes=1,
-        vf=f"scale='if(gt(iw,ih), -2, min({td},iw))':'if(gt(ih,iw), -2, min({td},ih))',\
-             crop='min({td},min(iw,ih))':'min({td},min(iw,ih))'"
+        vf=f"scale='if(gt(iw,ih), -2, min(400,iw))':'if(gt(ih,iw), -2, min(400,ih))',\
+             crop='min(400,min(iw,ih))':'min(400,min(iw,ih))'"
     ).run()
 
     # Upload thumbnail back to S3
