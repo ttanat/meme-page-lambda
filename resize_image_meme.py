@@ -4,13 +4,17 @@ from secrets import token_urlsafe
 
 s3 = boto3.client('s3')
 
-tmp = "/tmp/image.jpg"
 new = "/tmp/image.webp"
 
 BUCKET = "meme-page-london"
 
 
 def lambda_handler(event, context):
+    # Get image extension
+    ext = os.path.splitext(event["original_key"])[1]
+
+    tmp = f"/tmp/image{ext}"
+
     # Download original image to image.jpg
     s3.download_file(BUCKET, event["original_key"], tmp)
 
