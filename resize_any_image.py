@@ -13,13 +13,13 @@ def lambda_handler(event, context):
 
     tmp = f"/tmp/image{ext}"
 
-    # Download original image to image.jpg
+    # Download original image to tmp
     s3.download_file(BUCKET_NAME, event["file_key"], tmp)
 
     # Open image.jpg
     with Image.open(tmp) as img:
         """ Resize image to specified size and upload back to S3 """
-        # Resize image.jpg
+        # Resize image
         img.thumbnail(event["dimensions"])
         # Save resized image
         img.save(tmp, optimize=True, quality=70)
