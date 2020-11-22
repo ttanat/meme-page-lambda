@@ -32,6 +32,21 @@ def lambda_handler(event, context):
                 "errorMessage": "Image must be at least 320x320 pixels"
             }
 
+        """ Resize and overwrite original image """
+        # Resize to maximum 960x960
+        img.thumbnail((960, 960))
+        # Overwrite downloaded file (tmp)
+        img.save(tmp, optimize=True, quality=70)
+        # Get content type of image
+        content_type = "image/png" if ext.lower() == ".png" else "image/jpeg"
+        # Upload resized back to original path in S3 (overwrite)
+        s3.upload_file(
+            tmp,
+            BUCKET,
+            event["original_key"],
+            ExtraArgs={"ContentType": content_type}
+        )
+
         """ Only create thumbnail if image is already <= 400x400 """
         if img.width <= 400 and img.height <= 400:
             data = data[1]
