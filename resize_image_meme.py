@@ -1,72 +1,79 @@
-import boto3, os
+import os
+
+import boto3
 from PIL import Image
-from secrets import token_urlsafe
+from PIL.ImageOps import exif_transpose
+
 
 s3 = boto3.client('s3')
-
-new = "/tmp/image.webp"
-
 BUCKET = "meme-page-london"
 
 
 def lambda_handler(event, context):
     # Get image extension
-    ext = os.path.splitext(event["original_key"])[1]
+    ext = os.path.splitext(event["get_file_at"])[1]
 
-    tmp = f"/tmp/image{ext}"
+    tmp_original_path = f"/tmp/original{ext}"
 
-    # Download original image to image.jpg
-    s3.download_file(BUCKET, event["original_key"], tmp)
+    # Download original image to original.<ext>
+    s3.download_file(BUCKET, event["get_file_at"], tmp_original_path)
 
-    data = (
-        ("large", f"{token_urlsafe(5)}.webp", (960, 960)),
-        ("thumbnail", f"{token_urlsafe(5)}.webp", (400, 400)),
-    )
-
-    # Open image.jpg
-    with Image.open(tmp) as img:
-        """ Check image file size is valid """
-        if img.width < 320 or img.height < 320:
-            return {
-                "statusCode": 418,
-                "errorMessage": "Image must be at least 320x320 pixels"
-            }
+    # Open original image
+    with exif_transpose(Image.open(tmp_original_path).convert("RGB")) as img:
+        # Get keyword arguments for saving images
+        kwargs = {"optimize": True, "quality": 70}
+        # Get ICC profile
+        if img.info.get("icc_profile"):
+            kwargs["icc_profile"] = img.info["icc_profile"]
 
         """ Resize and overwrite original image """
         # Resize to maximum 960x960
         img.thumbnail((960, 960))
         # Overwrite downloaded file (tmp)
-        img.save(tmp, optimize=True, quality=70)
+        img.save(tmp_original_path, **kwargs)
         # Get content type of image
         content_type = "image/png" if ext.lower() == ".png" else "image/jpeg"
         # Upload resized back to original path in S3 (overwrite)
         s3.upload_file(
-            tmp,
+            tmp_original_path,
             BUCKET,
-            event["original_key"],
+            event["get_file_at"],
             ExtraArgs={"ContentType": content_type}
         )
 
-        """ Only create thumbnail if image is already <= 400x400 """
-        if img.width <= 400 and img.height <= 400:
-            data = data[1]
+        """ Resize to create large WEBP image """
+        tmp_large_path = "/tmp/large.webp"
+        # Write large WEBP image to tmp directory
+        img.save(tmp_large_path, **kwargs, format="WEBP")
+        # Upload large WEBP image to S3
+        s3.upload_file(
+            tmp_large_path,
+            BUCKET,
+            event["large_key"],
+            ExtraArgs={"ContentType": "image/webp"}
+        )
 
-        """ Resize image to different sizes and upload back to S3 """
-        for size, fname, dimensions in data:
-            # Resize image.jpg
-            img.thumbnail(dimensions)
-            # Save resized image to image.webp
-            img.save(new, optimize=True, quality=70, format="WEBP")
+        """ Create WEBP thumbnail """
+        tmp_thumbnail_path = "/tmp/thumb.webp"
+        # Get image width and height
+        width, height = img.size
+        # Get length of square to crop out of image
+        crop_size = min(img.size)
+        # Crop and save thumbnail to tmp directory
+        with img.crop((
+            (width - crop_size) // 2,
+            (height - crop_size) // 2,
+            (width + crop_size) // 2,
+            (height + crop_size) // 2
+        )) as tmp:
+            tmp.thumbnail((400, 400))
+            tmp.save(tmp_thumbnail_path, **kwargs, format="WEBP")
+        # Upload WEBP thumbnail to S3
+        s3.upload_file(
+            tmp_thumbnail_path,
+            BUCKET,
+            event["thumbnail_key"],
+            ExtraArgs={"ContentType": "image/webp"}
+        )
 
-            # Upload resized image.webp to key
-            s3.upload_file(
-                new,
-                BUCKET,
-                os.path.join(event["path"], size, fname),
-                ExtraArgs={"ContentType": "image/webp"}
-            )
-
-    return {
-        "statusCode": 200,
-        "body": [{"size": d[0], "filename": d[1]} for d in data]
-    }
+    return {"statusCode": 200}
