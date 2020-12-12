@@ -25,6 +25,47 @@ def lambda_handler(event, context):
     # Open file in ffmpeg
     file = ffmpeg.input(tmp_original_path)
 
+    """ Create thumbnail file """
+    tmp_thumbnail_path = "/tmp/thumb.webp"
+    # Remove file in tmp directory if exists (to avoid ffmpeg asking user input to overwrite file)
+    try:
+        os.remove(tmp_thumbnail_path)
+    except OSError:
+        pass
+
+    # Create 400x400 WEBP thumbnail and save to tmp_thumbnail_path
+    file.output(
+        tmp_thumbnail_path,
+        r=1,
+        vframes=1,
+        q=70,
+        vf="scale='if(gt(iw,ih), -2, min(400,iw))':'if(gt(ih,iw), -2, min(400,ih))', \
+            crop='min(400,min(iw,ih))':'min(400,min(iw,ih))'"
+    ).run()
+
+    # If thumbnail file size is more than 50KB, then resize to lower (50) quality (default is 75)
+    if os.path.getsize(tmp_thumbnail_path) > 51200:
+        # Remove newly created thumbnail file
+        os.remove(tmp_thumbnail_path)
+        # Create lower quality thumbnail
+        file.output(
+            tmp_thumbnail_path,
+            r=1,
+            vframes=1,
+            q=50,
+            vf="scale='if(gt(iw,ih), -2, min(400,iw))':'if(gt(ih,iw), -2, min(400,ih))', \
+                crop='min(400,min(iw,ih))':'min(400,min(iw,ih))'"
+        ).run()
+
+    # Upload thumbnail back to S3
+    s3.upload_file(
+        tmp_thumbnail_path,
+        BUCKET,
+        event["thumbnail_key"],
+        ExtraArgs={"ContentType": "image/webp"}
+    )
+
+    """ Create large file """
     tmp_large_path = "/tmp/large.mp4"
     # Remove file in tmp directory if exists (to avoid ffmpeg asking user input to overwrite file)
     try:
