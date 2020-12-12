@@ -1,102 +1,71 @@
-import boto3, ffmpeg, os
-from secrets import token_urlsafe
-from operator import itemgetter
+import os
+
+import boto3
+import ffmpeg
+
 
 s3 = boto3.client('s3')
 BUCKET = 'meme-page-london'
 
+
 def lambda_handler(event, context):
-    video_data = {
-        "folder": "large",
-        "filename": f"{token_urlsafe(5)}.mp4"
-    }
+    # Get video extension
+    ext = os.path.splitext(event["get_file_at"])[1]
 
-    thumbnail_data = {
-        "folder": "thumbnail",
-        "filename": f"{token_urlsafe(5)}.webp"
-    }
-
-    # Name of file in tmp directory
-    tmp = f"/tmp/{os.path.split(event['original_key'])[1]}"
+    tmp_original_path = f"/tmp/original{ext}"
+    # Remove file in tmp directory if exists (to avoid ffmpeg asking user input to overwrite file)
+    try:
+        os.remove(tmp_original_path)
+    except OSError:
+        pass
 
     # Download file from S3
-    s3.download_file(BUCKET, event["original_key"], tmp)
-
-    # Get dimensions of video
-    info = ffmpeg.probe(tmp)
-    width, height = itemgetter("width", "height")(info["streams"][0])
-
-    # Perform checks
-    if width < 320 or height < 320:
-        return {"statusCode": 418, "errorMessage": "Video must be at least 320x320 pixels"}
-    if int(info["format"]["size"]) > 15728640:
-        return {"statusCode": 418, "errorMessage": "Maximum video size is 15MB"}
-    duration = float(info["format"]["duration"])
-    if duration < 1:
-        return {"statusCode": 418, "errorMessage": "Video must be at least 1 second"}
-    if duration > 60:
-        return {"statusCode": 418, "errorMessage": "Video must be 60 seconds or less"}
+    s3.download_file(BUCKET, event["get_file_at"], tmp_original_path)
 
     # Open file in ffmpeg
-    file = ffmpeg.input(tmp)
+    file = ffmpeg.input(tmp_original_path)
 
-    # Resize to 720x720 video
-    # Name of new video file in tmp directory
-    new_tmp = f"/tmp/video.mp4"
+    tmp_large_path = "/tmp/large.mp4"
+    # Remove file in tmp directory if exists (to avoid ffmpeg asking user input to overwrite file)
     try:
-        os.remove(new_tmp)
+        os.remove(tmp_large_path)
     except OSError:
         pass
 
-    # Process video
+    # Determine crf value depending on original file size (larger size -> increase crf -> size further reduced)
+    original_size = os.path.getsize(tmp_original_path)
+    if original_size < 1048576:
+        # If size less than 1 MB
+        crf = 28
+    elif original_size < 5242880:
+        # If size less than 5 MB
+        crf = 29
+    elif original_size < 9437184:
+        # If size less than 9 MB
+        crf = 30
+    elif original_size < 13631488:
+        # If size less than 13 MB
+        crf = 32
+    else:
+        crf = 33
+
+    # Resize video to maximum of 720x720 and save to "large.mp4" in tmp directory
     file.output(
-        new_tmp,
+        tmp_large_path,
         movflags="faststart",
         vcodec="libx264",
-        crf=33,
+        crf=crf,
         format="mp4",
         pix_fmt="yuv420p",
-        vf=f"scale='min(720,iw)':'min(720,ih)'\
-             :force_original_aspect_ratio=decrease:force_divisible_by=2"
-    ).run()
-
-    # Upload video back to S3
-    s3.upload_file(
-        new_tmp,
-        BUCKET,
-        os.path.join(event["path"], video_data["folder"], video_data["filename"]),
-        ExtraArgs={"ContentType": "video/mp4"}
-    )
-
-    # Resize to 400x400 WEBP thumbnail
-    # Name of thumbnail file in tmp directory
-    new_tmp = f"/tmp/thumbnail.webp"
-    try:
-        os.remove(new_tmp)
-    except OSError:
-        pass
-
-    # Create thumbnails
-    file.output(
-        new_tmp,
-        r=1,
-        vframes=1,
-        vf=f"scale='if(gt(iw,ih), -2, min(400,iw))':'if(gt(ih,iw), -2, min(400,ih))',\
-             crop='min(400,min(iw,ih))':'min(400,min(iw,ih))'"
+        vf="scale='min(720,iw)':'min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2"
     ).run()
 
     # Upload thumbnail back to S3
     s3.upload_file(
-        new_tmp,
+        tmp_large_path,
         BUCKET,
-        os.path.join(event["path"], thumbnail_data["folder"], thumbnail_data["filename"]),
-        ExtraArgs={"ContentType": "image/webp"}
+        event["large_key"],
+        ExtraArgs={"ContentType": "video/mp4"}
     )
 
-    return {
-        "statusCode": 200,
-        "body": [
-            {"size": video_data["folder"], "filename": video_data["filename"]},
-            {"size": thumbnail_data["folder"], "filename": thumbnail_data["filename"]}
-        ]
-    }
+    return {"statusCode": 200}
