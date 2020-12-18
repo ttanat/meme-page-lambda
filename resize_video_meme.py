@@ -41,7 +41,7 @@ def lambda_handler(event, context):
         q=70,
         vf="scale='if(gt(iw,ih), -2, min(400,iw))':'if(gt(ih,iw), -2, min(400,ih))', \
             crop='min(400,min(iw,ih))':'min(400,min(iw,ih))'"
-    ).run()
+    ).overwrite_output().run()
 
     # If thumbnail file size is more than 50KB, then resize to lower (50) quality (default is 75)
     if os.path.getsize(tmp_thumbnail_path) > 51200:
@@ -55,7 +55,7 @@ def lambda_handler(event, context):
             q=50,
             vf="scale='if(gt(iw,ih), -2, min(400,iw))':'if(gt(ih,iw), -2, min(400,ih))', \
                 crop='min(400,min(iw,ih))':'min(400,min(iw,ih))'"
-        ).run()
+        ).overwrite_output().run()
 
     # Upload thumbnail back to S3
     s3.upload_file(
@@ -99,7 +99,7 @@ def lambda_handler(event, context):
         format="mp4",
         pix_fmt="yuv420p",
         vf="scale='min(720,iw)':'min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2"
-    ).run()
+    ).overwrite_output().run()
 
     # Upload thumbnail back to S3
     s3.upload_file(

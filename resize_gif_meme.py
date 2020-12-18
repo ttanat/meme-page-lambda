@@ -62,7 +62,7 @@ def lambda_handler(event, context):
         vcodec="libx264",
         pix_fmt="yuv420p",
         vf="scale='min(720,iw)':'min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2"
-    ).run()
+    ).overwrite_output().run()
     # Upload video back to S3
     s3.upload_file(
         tmp_large_path,
