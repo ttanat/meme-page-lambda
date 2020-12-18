@@ -20,7 +20,7 @@ def lambda_handler(event, context):
 
     # Get video info
     info = ffmpeg.probe(tmp_original_path)
-    width, height, aspect_ratio = itemgetter("width", "height", "display_aspect_ratio")(info["streams"][0])
+    width, height, aspect_ratio, frame_rate = itemgetter("width", "height", "display_aspect_ratio", "avg_frame_rate")(info["streams"][0])
     width_ar, height_ar = [float(x) for x in aspect_ratio.split(":")]
     size = int(info["format"]["size"])
     duration = float(info["format"]["duration"])
@@ -37,5 +37,7 @@ def lambda_handler(event, context):
     # Allow some extra room past 16:9 aspect ratio, e.g. for 720x404
     if not 1 / 1.8 < width / height < 1.8 or not 1 / 1.8 < width_ar / height_ar < 1.8:
         return {"statusCode": 418, "errorMessage": "Aspect ratio must be between 16:9 and 9:16"}
+    if eval(frame_rate) > 60:
+        return {"statusCode": 418, "errorMessage": "Maximum 60 frames per second"}
 
     return {"statusCode": 200}
