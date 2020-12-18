@@ -51,9 +51,9 @@ def lambda_handler(event, context):
     except OSError:
         pass
     # Open original GIF file
-    file = ffmpeg.input(tmp_original_path)
+    stream = ffmpeg.input(tmp_original_path)
     # Convert GIF to mp4 and save to "large.mp4" in tmp directory
-    file.output(
+    stream.output(
         tmp_large_path,
         movflags="faststart",
         video_bitrate=0,

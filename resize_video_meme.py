@@ -23,7 +23,7 @@ def lambda_handler(event, context):
     s3.download_file(BUCKET, event["get_file_at"], tmp_original_path)
 
     # Open file in ffmpeg
-    file = ffmpeg.input(tmp_original_path)
+    stream = ffmpeg.input(tmp_original_path)
 
     """ Create thumbnail file """
     tmp_thumbnail_path = "/tmp/thumb.webp"
@@ -34,7 +34,7 @@ def lambda_handler(event, context):
         pass
 
     # Create 400x400 WEBP thumbnail and save to tmp_thumbnail_path
-    file.output(
+    stream.output(
         tmp_thumbnail_path,
         r=1,
         vframes=1,
@@ -48,7 +48,7 @@ def lambda_handler(event, context):
         # Remove newly created thumbnail file
         os.remove(tmp_thumbnail_path)
         # Create lower quality thumbnail
-        file.output(
+        stream.output(
             tmp_thumbnail_path,
             r=1,
             vframes=1,
@@ -91,7 +91,7 @@ def lambda_handler(event, context):
         crf = 33
 
     # Resize video to maximum of 720x720 and save to "large.mp4" in tmp directory
-    file.output(
+    stream.output(
         tmp_large_path,
         movflags="faststart",
         vcodec="libx264",
