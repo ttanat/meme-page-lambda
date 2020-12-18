@@ -20,7 +20,8 @@ def lambda_handler(event, context):
 
     # Get video info
     info = ffmpeg.probe(tmp_original_path)
-    width, height = itemgetter("width", "height")(info["streams"][0])
+    width, height, aspect_ratio = itemgetter("width", "height", "display_aspect_ratio")(info["streams"][0])
+    width_ar, height_ar = [float(x) for x in aspect_ratio.split(":")]
     size = int(info["format"]["size"])
     duration = float(info["format"]["duration"])
 
@@ -33,5 +34,8 @@ def lambda_handler(event, context):
         return {"statusCode": 418, "errorMessage": "Video must be at least 1 second"}
     if duration > 60:
         return {"statusCode": 418, "errorMessage": "Video must be 60 seconds or less"}
+    # Allow some extra room past 16:9 aspect ratio, e.g. for 720x404
+    if not 1 / 1.8 < width / height < 1.8 or not 1 / 1.8 < width_ar / height_ar < 1.8:
+        return {"statusCode": 418, "errorMessage": "Aspect ratio must be between 16:9 and 9:16"}
 
     return {"statusCode": 200}
