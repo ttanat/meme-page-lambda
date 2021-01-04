@@ -101,11 +101,12 @@ def lambda_handler(event, context):
         vf="scale='min(720,iw)':'min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2"
     ).overwrite_output().run()
 
-    # Upload thumbnail back to S3
+    # Upload resized video back to S3
+    # Save to large if file is mov, overwrite original if file is mp4
     s3.upload_file(
         tmp_large_path,
         BUCKET,
-        event["large_key"],
+        event.get("large_key", event["get_file_at"]), # large_key present only if file is mov
         ExtraArgs={"ContentType": "video/mp4"}
     )
 
