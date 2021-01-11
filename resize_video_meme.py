@@ -15,7 +15,7 @@ def lambda_handler(event, context):
     is_mov = ext == ".mov" and event.get("meme_id")
 
     tmp_original_path = f"/tmp/original{ext}"
-    # Remove file in tmp directory if exists (to avoid ffmpeg asking user input to overwrite file)
+    # Remove file in tmp directory if exists
     try:
         os.remove(tmp_original_path)
     except OSError:
@@ -29,7 +29,7 @@ def lambda_handler(event, context):
 
     """ Create thumbnail file """
     tmp_thumbnail_path = "/tmp/thumb.webp"
-    # Remove file in tmp directory if exists (to avoid ffmpeg asking user input to overwrite file)
+    # Remove file in tmp directory if exists
     try:
         os.remove(tmp_thumbnail_path)
     except OSError:
@@ -68,15 +68,14 @@ def lambda_handler(event, context):
     )
 
     """ Create large file """
-    tmp_large_path = "/tmp/large.mp4"
-    # Remove file in tmp directory if exists (to avoid ffmpeg asking user input to overwrite file)
-    try:
-        os.remove(tmp_large_path)
-    except OSError:
-        pass
+
+    original_size = os.path.getsize(tmp_original_path)
+
+    # If original file is mp4 and size <= 100KB, then don't need to resize video
+    if not is_mov and original_size <= 102400:
+        return {"statusCode": 200}
 
     # Determine crf value depending on original file size (larger size -> increase crf -> size further reduced)
-    original_size = os.path.getsize(tmp_original_path)
     if original_size < 1048576:
         # If size less than 1 MB
         crf = 28
@@ -91,6 +90,13 @@ def lambda_handler(event, context):
         crf = 32
     else:
         crf = 33
+
+    tmp_large_path = "/tmp/large.mp4"
+    # Remove file in tmp directory if exists
+    try:
+        os.remove(tmp_large_path)
+    except OSError:
+        pass
 
     # Resize video to maximum of 720x720 and save to "large.mp4" in tmp directory
     stream.output(
