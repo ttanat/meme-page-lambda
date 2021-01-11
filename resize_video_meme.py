@@ -2,6 +2,7 @@ import os
 
 import boto3
 import ffmpeg
+import psycopg2
 
 
 s3 = boto3.client('s3')
@@ -11,6 +12,7 @@ BUCKET = 'meme-page-london'
 def lambda_handler(event, context):
     # Get video extension
     ext = os.path.splitext(event["get_file_at"])[1]
+    is_mov = ext == ".mov" and event.get("meme_id")
 
     tmp_original_path = f"/tmp/original{ext}"
     # Remove file in tmp directory if exists (to avoid ffmpeg asking user input to overwrite file)
@@ -101,13 +103,33 @@ def lambda_handler(event, context):
         vf="scale='min(720,iw)':'min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2"
     ).overwrite_output().run()
 
+    if is_mov:
+        upload_to = f'{os.path.splitext(event["get_file_at"])[0]}.mp4'
+    else:
+        upload_to = event["get_file_at"]
+
     # Upload resized video back to S3
-    # Save to large if file is mov, overwrite original if file is mp4
     s3.upload_file(
         tmp_large_path,
         BUCKET,
-        event.get("large_key", event["get_file_at"]), # large_key present only if file is mov
+        upload_to,
         ExtraArgs={"ContentType": "video/mp4"}
     )
+
+    # If file is mov, update reference in db to mp4 and delete mov file
+    if is_mov:
+        conn = psycopg2.connect(
+            dbname=os.environ["dbname"],
+            user=os.environ["user"],
+            password=os.environ["password"],
+            host=os.environ["host"],
+            port=os.environ["port"]
+        )
+        with conn:
+            with conn.cursor() as curs:
+                curs.execute(f'UPDATE "memes_meme" SET "original" = \'{upload_to}\' WHERE "memes_meme"."id" = {event["meme_id"]};')
+        conn.close()
+
+        s3.delete_object(Bucket=BUCKET, Key=event["get_file_at"])
 
     return {"statusCode": 200}
