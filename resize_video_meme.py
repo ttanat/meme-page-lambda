@@ -1,4 +1,5 @@
 import os
+from contextlib import suppress
 
 import boto3
 import ffmpeg
@@ -15,11 +16,7 @@ def lambda_handler(event, context):
     is_mov = ext == ".mov" and event.get("meme_id")
 
     tmp_original_path = f"/tmp/original{ext}"
-    # Remove file in tmp directory if exists
-    try:
-        os.remove(tmp_original_path)
-    except OSError:
-        pass
+    with suppress(OSError): os.remove(tmp_original_path)
 
     # Download file from S3
     s3.download_file(BUCKET, event["get_file_at"], tmp_original_path)
@@ -29,11 +26,7 @@ def lambda_handler(event, context):
 
     """ Create thumbnail file """
     tmp_thumbnail_path = "/tmp/thumb.webp"
-    # Remove file in tmp directory if exists
-    try:
-        os.remove(tmp_thumbnail_path)
-    except OSError:
-        pass
+    with suppress(OSError): os.remove(tmp_thumbnail_path)
 
     # Create 400x400 WEBP thumbnail and save to tmp_thumbnail_path
     stream.output(
@@ -48,7 +41,7 @@ def lambda_handler(event, context):
     # If thumbnail file size is more than 50KB, then resize to lower (50) quality (default is 75)
     if os.path.getsize(tmp_thumbnail_path) > 51200:
         # Remove newly created thumbnail file
-        os.remove(tmp_thumbnail_path)
+        with suppress(OSError): os.remove(tmp_thumbnail_path)
         # Create lower quality thumbnail
         stream.output(
             tmp_thumbnail_path,
@@ -92,11 +85,7 @@ def lambda_handler(event, context):
         crf = 33
 
     tmp_large_path = "/tmp/large.mp4"
-    # Remove file in tmp directory if exists
-    try:
-        os.remove(tmp_large_path)
-    except OSError:
-        pass
+    with suppress(OSError): os.remove(tmp_large_path)
 
     # Resize video to maximum of 720x720 and save to "large.mp4" in tmp directory
     stream.output(
