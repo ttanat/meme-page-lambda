@@ -3,7 +3,6 @@ from contextlib import suppress
 
 import boto3
 import ffmpeg
-import psycopg2
 
 
 s3 = boto3.client('s3')
@@ -13,7 +12,7 @@ BUCKET = 'meme-page-london'
 def lambda_handler(event, context):
     # Get video extension
     ext = os.path.splitext(event["get_file_at"])[1]
-    is_mov = ext == ".mov" and event.get("meme_id")
+    is_mov = ext == ".mov"
 
     tmp_original_path = f"/tmp/original{ext}"
     with suppress(OSError): os.remove(tmp_original_path)
@@ -111,20 +110,8 @@ def lambda_handler(event, context):
         ExtraArgs={"ContentType": "video/mp4"}
     )
 
-    # If file is mov, update reference in db to mp4 and delete mov file
+    # Delete mov file
     if is_mov:
-        conn = psycopg2.connect(
-            dbname=os.environ["dbname"],
-            user=os.environ["user"],
-            password=os.environ["password"],
-            host=os.environ["host"],
-            port=os.environ["port"]
-        )
-        with conn:
-            with conn.cursor() as curs:
-                curs.execute(f'UPDATE "memes_meme" SET "original" = \'{upload_to}\' WHERE "memes_meme"."id" = {event["meme_id"]};')
-        conn.close()
-
         s3.delete_object(Bucket=BUCKET, Key=event["get_file_at"])
 
     return {"statusCode": 200}
